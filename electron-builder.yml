@@ -1,0 +1,36 @@
+appId: com.ongzh.highlight-translator
+productName: Highlight Translator
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - out/**
+  - package.json
+
+# helper scripts, tray icon and the argos model installer live outside the asar
+extraResources:
+  - from: native/SelectionHelper
+    to: helper
+    filter:
+      - SelectionHelper.ps1
+      - Helper.cs
+  - from: resources/icons
+    to: icons
+  - from: resources/pytools
+    to: pytools
+  - from: services/translation
+    to: translation
+    filter:
+      - setup.mjs
+
+win:
+  icon: build/icon.ico
+  target: nsis
+
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: always
+  shortcutName: Highlight Translator

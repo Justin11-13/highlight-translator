@@ -1,0 +1,142 @@
+/* =========================================================
+   SHARED DESIGN TOKENS + BASE (both windows)
+========================================================= */
+
+:root {
+  --ht-margin: 24px;
+  --ht-font-en: 'Segoe UI', Inter, Arial, sans-serif;
+  --ht-font-zh: 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
+  --ht-text: rgba(255, 255, 255, 0.95);
+  --ht-text-dim: rgba(255, 255, 255, 0.66);
+  --ht-accent: rgba(150, 210, 255, 0.95);
+  --ht-success: rgba(160, 255, 215, 0.9);
+  --ht-danger: rgba(255, 150, 150, 0.95);
+  --ht-stroke: rgba(255, 255, 255, 0.14);
+  --ht-fill: rgba(255, 255, 255, 0.07);
+  --ht-fill-hover: rgba(255, 255, 255, 0.16);
+  /* keeps glass text readable over bright desktop content */
+  --ht-text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), 0 0 8px rgba(0, 0, 0, 0.25);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+body {
+  overflow: hidden;
+  font-family: var(--ht-font-en), var(--ht-font-zh);
+  color: var(--ht-text);
+  text-shadow: var(--ht-text-shadow);
+  user-select: none;
+}
+
+/* svg filter definitions are invisible */
+.liquid-glass-svg {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* =========================================================
+   GLASS CARD (shared)
+========================================================= */
+
+.liquid-glass-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+
+  /* Popup BrowserWindow 现在与卡片同尺寸；阴影仅作为卡片内部的玻璃层效果。 */
+  box-shadow:
+    0 14px 42px rgba(0, 0, 0, 0.20),
+    0 3px 10px rgba(0, 0, 0, 0.12);
+}
+
+/* 静态边框；不再叠加动态顶部高光或内侧亮边。 */
+.liquid-glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+/* refracting backdrop layer (kept below the content) */
+.glass-filter-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  /* 完全无绘制内容的透明层会被 Chromium 合成器优化掉，连同
+     backdrop-filter 一起失效。极低 alpha 只用于保留独立合成层，
+     肉眼不可见，不承担 tint/颜色职责。 */
+  background: rgba(255, 255, 255, 0.001);
+  transform: translateZ(0);
+  will-change: backdrop-filter;
+  contain: paint;
+}
+
+.liquid-glass-card > :not(.glass-backdrop-img, .glass-aurora, .glass-filter-layer) {
+  position: relative;
+  z-index: 2;
+}
+
+/* 用户自定义背景照片层（位于折射层之下，会被玻璃折射） */
+.glass-backdrop-img {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  pointer-events: none;
+}
+
+/* subtle aurora behind the glass so refraction has something to bend */
+.glass-aurora {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 55% at 18% 12%, rgba(64, 156, 255, 0.30), transparent 70%),
+    radial-gradient(45% 60% at 85% 90%, rgba(0, 210, 190, 0.22), transparent 72%),
+    radial-gradient(30% 40% at 70% 15%, rgba(140, 120, 255, 0.20), transparent 70%);
+  /* Chromium 透明窗口无法稳定采样 Windows 桌面；Blur 同时控制玻璃内部
+     光晕扩散，确保滑杆在不启用方形原生材质时仍有清晰可见的效果。 */
+  filter: blur(calc(var(--ht-glass-blur, 10px) * 2.6));
+  opacity: calc(1 - var(--ht-glass-blur-progress, 0) * 0.32);
+  transform: scale(var(--ht-glass-blur-scale, 1.033));
+  transition: filter 120ms ease, opacity 120ms ease, transform 120ms ease;
+}
+
+/* =========================================================
+   SHARED CONTROLS
+========================================================= */
+
+.tool-btn,
+.glass-btn,
+.titlebar-btn {
+  color: var(--ht-text);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.18);
+}
