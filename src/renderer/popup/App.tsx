@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { LiquidGlass } from '../shared/LiquidGlass'
 import {
   chineseFontStack,
@@ -97,9 +97,13 @@ export default function App() {
   const [panelBodyHeight, setPanelBodyHeight] = useState<number | null>(null)
   const [appearance, setAppearance] = useState<PopupAppearance>(DEFAULT_APPEARANCE)
   const [originalInput, setOriginalInput] = useState('')
+  const originalInputRef = useRef<HTMLTextAreaElement | null>(null)
+  const translatedTextRef = useRef<HTMLDivElement | null>(null)
   const inputTranslateTimer = useRef<number | null>(null)
   const dragPointerId = useRef<number | null>(null)
   const resizePointerId = useRef<number | null>(null)
+  const resizeCheckTimer = useRef<number | null>(null)
+  const [resizeRevision, setResizeRevision] = useState(0)
   const appearancePersistTimer = useRef<number | null>(null)
   const pendingAppearancePatch = useRef<Partial<PopupAppearance>>({})
 
@@ -126,6 +130,9 @@ export default function App() {
     return () => {
       if (inputTranslateTimer.current !== null) {
         window.clearTimeout(inputTranslateTimer.current)
+      }
+      if (resizeCheckTimer.current !== null) {
+        window.clearTimeout(resizeCheckTimer.current)
       }
     }
   }, [])
@@ -355,6 +362,14 @@ export default function App() {
     event.stopPropagation()
     resizePointerId.current = null
     ht?.popup?.resizeEnd()
+    if (resizeCheckTimer.current !== null) {
+      window.clearTimeout(resizeCheckTimer.current)
+    }
+    // 等主进程清除 resizeSession 后再复查，避免手动缩小后原文被裁掉。
+    resizeCheckTimer.current = window.setTimeout(() => {
+      resizeCheckTimer.current = null
+      setResizeRevision(value => value + 1)
+    }, 32)
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
@@ -443,6 +458,80 @@ export default function App() {
   const isLoading = data?.status === 'loading'
   const isError = data?.status === 'error'
 
+  /** 原文或译文换行超出内容卡时，优先把 popup 增高；到达工作区上限后安全夹紧。 */
+  useLayoutEffect(() => {
+    if (DEMO_MODE || panelOpen || !ht?.popup) {
+      return
+    }
+
+    let frame = 0
+    const measureAndResize = () => {
+      frame = 0
+      const input = originalInputRef.current
+      const translated = translatedTextRef.current
+      if (!input && !translated) {
+        return
+      }
+
+      const originalOverflow = showOriginal && input ? input.scrollHeight - input.clientHeight : 0
+      const translatedOverflow = translated ? translated.scrollHeight - translated.clientHeight : 0
+      const overflow = Math.max(originalOverflow, translatedOverflow)
+      if (overflow <= 2) {
+        return
+      }
+
+      const currentHeight = window.innerHeight
+      // 原文与译文默认等分正文空间，因此每多出一行，窗口需要为两行各让出空间。
+      // 主进程会再按当前显示器 workArea 夹紧，避免窗口被推到屏幕外。
+      const rowFactor = showOriginal ? 2 : 1
+      const desiredHeight = currentHeight + Math.ceil(overflow * rowFactor)
+      if (desiredHeight <= currentHeight + 2) {
+        return
+      }
+
+      ht.popup?.resizeToContent(desiredHeight)
+    }
+    const scheduleMeasure = () => {
+      if (frame) {
+        window.cancelAnimationFrame(frame)
+      }
+      frame = window.requestAnimationFrame(measureAndResize)
+    }
+
+    scheduleMeasure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleMeasure)
+    if (observer && originalInputRef.current) {
+      observer.observe(originalInputRef.current)
+    }
+    if (observer && translatedTextRef.current) {
+      observer.observe(translatedTextRef.current)
+    }
+
+    return () => {
+      if (frame) {
+        window.cancelAnimationFrame(frame)
+      }
+      observer?.disconnect()
+    }
+  }, [
+    appearance.chineseFontFamily,
+    appearance.chineseFontSize,
+    appearance.englishFontFamily,
+    appearance.englishFontSize,
+    appearance.popupHeight,
+    appearance.popupWidth,
+    data?.id,
+    data?.status,
+    data?.translatedText,
+    data?.errorCode,
+    data?.canRetryAnyway,
+    originalInput,
+    panelOpen,
+    resizeRevision,
+    showOriginal,
+    ht
+  ])
+
   return (
     <div
       className={`popup-root${closing ? ' popup-closing' : ''}`}
@@ -467,7 +556,8 @@ export default function App() {
       {/* 1. 窗口 = 弹窗卡片本身 */}
       <LiquidGlass
         radius={15}
-        tintAlpha={Math.max(POPUP_FROSTED_MIN_OPACITY, appearance.glassOpacity)}
+        // Popup 固定使用无底色玻璃；Appearance 只调 Blur，不再叠加 tint opacity。
+        tintAlpha={POPUP_FROSTED_MIN_OPACITY}
         tintColor="#47494f"
         blur={appearance.glassBlur}
         className={`popup-card${panelOpen ? ' panel-open' : ''}`}
@@ -500,17 +590,28 @@ export default function App() {
           </button>
         </div>
 
-        {/* 3+4. 中部容器：原文区与译文区是两个独立 div，平分剩余空间 */}
+        {/* 3+4. 中部容器：原文区与译文区是两个独立内容卡，平分剩余空间 */}
         <div className="pop-body">
           {/* 3. 原文区：既显示高亮原文，也允许直接编辑后重新翻译 */}
           <div className={`text-row ${showOriginal ? '' : 'row-hidden'}`}>
-            <div className="original-input-wrap">
+            <div
+              className="original-input-wrap"
+              onPointerDown={event => {
+                if (event.button !== 0) {
+                  return
+                }
+                event.stopPropagation()
+                window.focus()
+                originalInputRef.current?.focus()
+              }}
+            >
               <label className="input-label" htmlFor="original-input">
                 {uiText(language, 'inputOriginal')}
               </label>
               <textarea
                 id="original-input"
                 className="original-input"
+                ref={originalInputRef}
                 value={originalInput}
                 placeholder={uiText(language, 'inputOriginalPlaceholder')}
                 spellCheck={false}
@@ -551,24 +652,27 @@ export default function App() {
 
         {/* 4. 译文行（译文 + 中文朗读按钮） */}
         <div className="text-row">
-          <div className="translated-text">
-            {isLoading && <span className="loading-inline">{uiText(language, 'loading')}</span>}
-            {isError && data && (
-              <>
-                <span className="error-inline">
-                  {uiText(language, errorMessageKeys[data.errorCode ?? ''] ?? 'translateUnavailable')}
-                </span>
-                {data.canRetryAnyway && (
-                  <button className="retry-btn" onClick={() => ht?.popup?.translateAnyway(data.id)}>
-                    {data.errorCode === 'too_long'
-                      ? uiText(language, 'translateAnyway')
-                      : uiText(language, 'retry')}
-                  </button>
-                )}
-              </>
-            )}
-            {data?.status === 'result' && data.translatedText}
-            {!data && <span className="loading-inline">{uiText(language, 'waiting')}</span>}
+          <div className="translated-text-wrap">
+            <span className="input-label">{uiText(language, 'translation')}</span>
+            <div className="translated-text" ref={translatedTextRef}>
+              {isLoading && <span className="loading-inline">{uiText(language, 'loading')}</span>}
+              {isError && data && (
+                <>
+                  <span className="error-inline">
+                    {uiText(language, errorMessageKeys[data.errorCode ?? ''] ?? 'translateUnavailable')}
+                  </span>
+                  {data.canRetryAnyway && (
+                    <button className="retry-btn" onClick={() => ht?.popup?.translateAnyway(data.id)}>
+                      {data.errorCode === 'too_long'
+                        ? uiText(language, 'translateAnyway')
+                        : uiText(language, 'retry')}
+                    </button>
+                  )}
+                </>
+              )}
+              {data?.status === 'result' && data.translatedText}
+              {!data && <span className="loading-inline">{uiText(language, 'waiting')}</span>}
+            </div>
           </div>
           <button
             className={`speech-btn ${speaking === 'zh' ? 'active' : ''}`}
@@ -670,35 +774,19 @@ export default function App() {
               </div>
             </div>
 
-            <div className="panel-grid">
-              <div className="panel-item">
-                <div className="range-head">
-                  <label>{uiText(language, 'glassOpacity')}</label>
-                  <span className="range-value">{Math.round(appearance.glassOpacity * 100)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={0.9}
-                  step={0.02}
-                  value={appearance.glassOpacity}
-                  onChange={e => patchAppearance({ glassOpacity: Number(e.target.value) })}
-                />
+            <div className="panel-item">
+              <div className="range-head">
+                <label>{uiText(language, 'glassBlur')}</label>
+                <span className="range-value">{appearance.glassBlur}px</span>
               </div>
-              <div className="panel-item">
-                <div className="range-head">
-                  <label>{uiText(language, 'glassBlur')}</label>
-                  <span className="range-value">{appearance.glassBlur}px</span>
-                </div>
-                <input
-                  type="range"
-                  min={POPUP_FROSTED_BLUR_MIN}
-                  max={POPUP_FROSTED_BLUR_MAX}
-                  step={1}
-                  value={appearance.glassBlur}
-                  onChange={e => patchAppearance({ glassBlur: Number(e.target.value) })}
-                />
-              </div>
+              <input
+                type="range"
+                min={POPUP_FROSTED_BLUR_MIN}
+                max={POPUP_FROSTED_BLUR_MAX}
+                step={1}
+                value={appearance.glassBlur}
+                onChange={e => patchAppearance({ glassBlur: Number(e.target.value) })}
+              />
             </div>
 
             <div className="panel-grid">
@@ -781,7 +869,6 @@ export default function App() {
               onClick={() =>
                 patchAppearance({
                   showOriginal: true,
-                  glassOpacity: 0,
                   glassBlur: POPUP_FROSTED_BLUR,
                   englishFontFamily: 'segoe',
                   chineseFontFamily: 'yahei',

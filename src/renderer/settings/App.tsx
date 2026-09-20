@@ -452,16 +452,6 @@ function PopupAppearanceSettings({ settings, update, language }: AppearanceSubPr
         </div>
       </div>
       <SliderRow
-        title={uiText(language, 'glassOpacity')}
-        subtitle={uiText(language, 'glassOpacitySub')}
-        min={0}
-        max={0.9}
-        step={0.02}
-        value={settings.glassOpacity}
-        format={v => `${Math.round(v * 100)}%`}
-        onChange={v => update({ glassOpacity: v })}
-      />
-      <SliderRow
         title={uiText(language, 'glassBlur')}
         subtitle={uiText(language, 'glassBlurSub')}
         min={POPUP_FROSTED_BLUR_MIN}
@@ -488,7 +478,7 @@ function PopupAppearanceSettings({ settings, update, language }: AppearanceSubPr
           <input
             type="range"
             min={240}
-            max={640}
+            max={POPUP_SIZE.maxH}
             step={10}
             value={settings.popupHeight}
             onChange={e => update({ popupHeight: Number(e.target.value) })}

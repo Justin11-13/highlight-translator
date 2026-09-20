@@ -58,6 +58,21 @@ function fitWindowToWorkArea(bounds: Rectangle): Rectangle {
   }
 }
 
+/** Header 拖动只限制位置，不改变用户当前的窗口宽高。 */
+function clampPopupDragPosition(bounds: Rectangle): Rectangle {
+  const area = screen.getDisplayMatching(bounds).workArea
+  const minX = area.x + SCREEN_GAP
+  const minY = area.y + SCREEN_GAP
+  const maxX = Math.max(minX, area.x + area.width - bounds.width - SCREEN_GAP)
+  const maxY = Math.max(minY, area.y + area.height - bounds.height - SCREEN_GAP)
+
+  return {
+    ...bounds,
+    x: Math.max(minX, Math.min(Math.round(bounds.x), maxX)),
+    y: Math.max(minY, Math.min(Math.round(bounds.y), maxY))
+  }
+}
+
 let win: BrowserWindow | null = null
 let unsubscribeTts: (() => void) | null = null
 
@@ -74,6 +89,7 @@ let userPos = { x: 0, y: 0 } // 用户拖动后的窗口位置（DIP）
 let autoPositioning = false // 程序自身 setBounds（含移动动画期间）时忽略 move 事件
 let settingsPanelBaseBounds: Rectangle | null = null
 let resizePersistTimer: NodeJS.Timeout | null = null
+let autoResizeInProgress = false
 let dragSession: {
   pointerX: number
   pointerY: number
@@ -91,6 +107,51 @@ function setPopupBounds(bounds: Rectangle): void {
   }
 
   win.setBounds(bounds)
+}
+
+/**
+ * 原文内容需要更多垂直空间时，只增高当前 popup，不改写用户保存的尺寸。
+ * 下一次新划词仍会从 Appearance 保存的基础尺寸开始，避免一次长文本永久撑大窗口。
+ */
+function resizePopupToContent(height: number): void {
+  if (
+    !win ||
+    win.isDestroyed() ||
+    settingsPanelBaseBounds ||
+    resizeSession ||
+    !Number.isFinite(height)
+  ) {
+    return
+  }
+
+  const bounds = win.getBounds()
+  const targetWidth = Math.min(Math.max(Math.round(bounds.width - MARGIN * 2), POPUP_SIZE.minW), POPUP_SIZE.maxW)
+  const targetHeight = Math.max(POPUP_SIZE.minH, Math.ceil(height))
+  if (targetHeight <= bounds.height + 2) {
+    return
+  }
+
+  const nextBounds = fitWindowToWorkArea({
+    ...bounds,
+    width: targetWidth + MARGIN * 2,
+    height: targetHeight + MARGIN * 2
+  })
+  if (nextBounds.height <= bounds.height + 2) {
+    return
+  }
+
+  if (resizePersistTimer) {
+    clearTimeout(resizePersistTimer)
+    resizePersistTimer = null
+  }
+
+  autoResizeInProgress = true
+  applyWindowBounds(nextBounds)
+  // BrowserWindow may emit resize on the next native event turn; keep the
+  // persistence guard alive long enough to distinguish it from a grip resize.
+  setTimeout(() => {
+    autoResizeInProgress = false
+  }, 260)
 }
 
 function applyWindowBounds(bounds: Rectangle): void {
@@ -259,7 +320,6 @@ export function popupWindow(): BrowserWindow {
     minWidth: POPUP_SIZE.minW,
     minHeight: POPUP_SIZE.minH,
     maxWidth: POPUP_SIZE.maxW,
-    maxHeight: POPUP_SIZE.maxH,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -322,7 +382,7 @@ export function popupWindow(): BrowserWindow {
       return
     }
 
-    if (settingsPanelBaseBounds || autoPositioning) {
+    if (settingsPanelBaseBounds || autoPositioning || autoResizeInProgress) {
       return
     }
 
@@ -743,16 +803,15 @@ function registerIpc(): void {
     }
 
     const start = dragSession
-    const x = start.bounds.x + Math.round(pointerX - start.pointerX)
-    const y = start.bounds.y + Math.round(pointerY - start.pointerY)
-    // 不走 setPosition：透明 shaped window 在部分 Windows DPI 组合下会重算
-    // 非客户区。每帧原子写入固定宽高，移动期间没有尺寸自由度。
-    win.setBounds({
-      x,
-      y,
+    const next = clampPopupDragPosition({
+      x: start.bounds.x + Math.round(pointerX - start.pointerX),
+      y: start.bounds.y + Math.round(pointerY - start.pointerY),
       width: start.bounds.width,
       height: start.bounds.height
     })
+    // 不走 setPosition：透明 shaped window 在部分 Windows DPI 组合下会重算
+    // 非客户区。每帧原子写入固定宽高，移动期间没有尺寸自由度。
+    win.setBounds(next)
   })
 
   ipcMain.on('popup:drag-end', () => {
@@ -763,16 +822,23 @@ function registerIpc(): void {
       return
     }
 
-    const bounds = win.getBounds()
+    // 以拖动开始时的尺寸做最终校正，避免某个原生 resize 事件在拖动结束
+    // 的同一事件循环里改变尺寸后，把位置夹紧到错误的可视范围。
+    const currentBounds = win.getBounds()
+    const bounds = clampPopupDragPosition({
+      ...currentBounds,
+      width: session.bounds.width,
+      height: session.bounds.height
+    })
 
     // 防御性校正：移动结束后的尺寸必须与开始时完全一致。
-    if (bounds.width !== session.bounds.width || bounds.height !== session.bounds.height) {
-      win.setBounds({
-        x: bounds.x,
-        y: bounds.y,
-        width: session.bounds.width,
-        height: session.bounds.height
-      })
+    if (
+      bounds.x !== currentBounds.x ||
+      bounds.y !== currentBounds.y ||
+      bounds.width !== currentBounds.width ||
+      bounds.height !== currentBounds.height
+    ) {
+      win.setBounds(bounds)
     }
 
     userDragged = true
@@ -820,6 +886,10 @@ function registerIpc(): void {
 
   ipcMain.on('popup:resize-end', () => {
     resizeSession = null
+  })
+
+  ipcMain.on('popup:resize-to-content', (_event, height: number) => {
+    resizePopupToContent(height)
   })
 
   ipcMain.on('popup:set-settings-open', (_event, open: boolean) => {

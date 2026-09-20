@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('ht', {
     resizeStart: (screenX: number, screenY: number) => ipcRenderer.send('popup:resize-start', screenX, screenY),
     resizeMove: (screenX: number, screenY: number) => ipcRenderer.send('popup:resize-move', screenX, screenY),
     resizeEnd: () => ipcRenderer.send('popup:resize-end'),
+    resizeToContent: (height: number) => ipcRenderer.send('popup:resize-to-content', height),
     speak: (text: string, language: TtsLanguage) => ipcRenderer.send('popup:speak', { text, language }),
     stopSpeaking: () => ipcRenderer.send('popup:stop-speaking'),
     onTtsState: (cb: (state: TtsState) => void) => on<TtsState>('popup:tts-state', cb),

@@ -68,6 +68,11 @@ function isLegacyPopupGlassRecord(source: Record<string, unknown>): boolean {
   return numberValue(source['popupGlassSchemaVersion'], 0, 0, 1) < 1
 }
 
+/** 统一现有安装的 popup 初始尺寸；迁移完成后继续保留用户后续的自定义尺寸。 */
+function isLegacyPopupSizeRecord(source: Record<string, unknown>): boolean {
+  return numberValue(source['popupSizeSchemaVersion'], 0, 0, 1) < 1
+}
+
 /**
  * 对磁盘设置和 Renderer patch 使用同一套白名单/范围校验。
  * 非法值回退默认值，避免持久化设置破坏窗口尺寸或 IPC 行为。
@@ -76,11 +81,14 @@ function sanitizeSettings(input: unknown): Settings {
   const source = isRecord(input) ? input : {}
   const migrateMainGlass = isLegacyMainGlassRecord(source)
   const migratePopupGlass = isLegacyPopupGlassRecord(source)
+  const migratePopupSize = isLegacyPopupSizeRecord(source)
   const storedModels = isRecord(source['modelsInstalled']) ? source['modelsInstalled'] : {}
-  const size = clampPopupSize(
-    numberValue(source['popupWidth'], DEFAULT_SETTINGS.popupWidth, POPUP_SIZE.minW, POPUP_SIZE.maxW),
-    numberValue(source['popupHeight'], DEFAULT_SETTINGS.popupHeight, POPUP_SIZE.minH, POPUP_SIZE.maxH)
-  )
+  const size = migratePopupSize
+    ? clampPopupSize(DEFAULT_SETTINGS.popupWidth, DEFAULT_SETTINGS.popupHeight)
+    : clampPopupSize(
+        numberValue(source['popupWidth'], DEFAULT_SETTINGS.popupWidth, POPUP_SIZE.minW, POPUP_SIZE.maxW),
+        numberValue(source['popupHeight'], DEFAULT_SETTINGS.popupHeight, POPUP_SIZE.minH, POPUP_SIZE.maxH)
+      )
 
   return {
     launchAtStartup: booleanValue(source['launchAtStartup'], DEFAULT_SETTINGS.launchAtStartup),
@@ -119,6 +127,7 @@ function sanitizeSettings(input: unknown): Settings {
     mainGlassSchemaVersion: 1,
     popupWidth: size.width,
     popupHeight: size.height,
+    popupSizeSchemaVersion: 1,
     showOriginal: booleanValue(source['showOriginal'], DEFAULT_SETTINGS.showOriginal),
     englishFontFamily: stringValue(source['englishFontFamily'], DEFAULT_SETTINGS.englishFontFamily, value => value in EN_FONT_STACKS),
     chineseFontFamily: stringValue(source['chineseFontFamily'], DEFAULT_SETTINGS.chineseFontFamily, value => value in ZH_FONT_STACKS),

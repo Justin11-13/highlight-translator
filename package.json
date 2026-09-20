@@ -1,7 +1,7 @@
 {
   "name": "highlight-translator",
   "productName": "Highlight Translator",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Select text anywhere on Windows, get an instant offline translation in a liquid glass popup.",
   "author": "ongzh",
   "license": "MIT",

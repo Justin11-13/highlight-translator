@@ -148,7 +148,7 @@ export interface Settings {
   clipboardFallback: boolean;
   /** 鼠标离开弹窗后多久自动隐藏（毫秒） */
   autoHideDelay: number;
-  /** 翻译 popup 玻璃卡片基础不透明度 0..1 */
+  /** 翻译 popup 玻璃卡片基础不透明度 0..1（内部兼容字段；界面不再提供控制） */
   glassOpacity: number;
   /** 翻译 popup 外观参数迁移版本（内部字段，不在设置页展示） */
   popupGlassSchemaVersion: number;
@@ -164,8 +164,10 @@ export interface Settings {
   mainGlassSchemaVersion: number;
   /** 弹窗卡片宽度（DIP），由 Appearance 或专用缩放把手调整（380..900） */
   popupWidth: number;
-  /** 弹窗卡片高度（DIP），由 Appearance 或专用缩放把手调整（240..640） */
+  /** 弹窗卡片高度（DIP），由 Appearance 或专用缩放把手调整（240..900） */
   popupHeight: number;
+  /** 弹窗默认尺寸迁移版本（内部字段，不在设置页展示） */
+  popupSizeSchemaVersion: number;
   /** 弹窗是否显示原文区块（译文在上、原文可关） */
   showOriginal: boolean;
   /** 英文字体（EN_FONT_STACKS 的 key） */
@@ -211,7 +213,7 @@ export const POPUP_SIZE = {
   minW: 380,
   minH: 240,
   maxW: 900,
-  maxH: 760
+  maxH: 900
 } as const
 
 /** 液态玻璃的最低背景模糊，避免低透明度下背景照片直接露出。 */
@@ -251,6 +253,7 @@ export interface HtBridge {
     resizeStart(screenX: number, screenY: number): void;
     resizeMove(screenX: number, screenY: number): void;
     resizeEnd(): void;
+    resizeToContent(height: number): void;
     speak(text: string, language: TtsLanguage): void;
     stopSpeaking(): void;
     onTtsState(cb: (state: TtsState) => void): () => void;
@@ -316,8 +319,9 @@ export const DEFAULT_SETTINGS: Settings = {
   mainGlassColor: '#ffffff',
   mainGlassSchemaVersion: 1,
   showOriginal: true,
-  popupWidth: 520,
+  popupWidth: POPUP_SIZE.defaultW,
   popupHeight: POPUP_SIZE.defaultH,
+  popupSizeSchemaVersion: 1,
   englishFontFamily: 'segoe',
   chineseFontFamily: 'yahei',
   englishFontSize: 13,
