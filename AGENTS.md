@@ -137,6 +137,8 @@ scripts/install-app.ps1                        # 静默安装（先停运行中�
 | 2026-09-19 | 移除启动时的等待弹窗；popupMode 默认恢复为 on-selection | 对齐 Implementation Plan 的 Highlight → Translate → Show Popup 流程；Start Translator 只启用划词监听，不提前显示 Popup |
 | 2026-09-19 | 新增统一 `en`/`zh` UI 文案；设置窗口按显示器 workArea 夹紧；弹窗内 Appearance 展开记录并恢复原始边界 | 用户要求双语 UI、设置不越界，以及关闭设置后不改变翻译窗口大小 |
 | 2026-09-19 | Helper 在剪贴板兜底前通过 UIA 坐标/焦点父级识别 `ControlType.Edit`，输入控件直接跳过 Ctrl+C | 避免高亮输入框文字时改写用户剪贴板；UIA 直接读到选区时本来就不会触碰剪贴板 |
+| 2026-09-20 | 原生 UIA `Edit` 输入控件跳过剪贴板兜底；Chrome/Edge 等浏览器编辑宿主优先绑定目标窗口并走保存/恢复剪贴板路径 | 修复 Google Docs 画布被 Chromium 误判为输入框后静默丢弃的问题；同时记录 SendInput/焦点失败，保留原生输入框和截图工具保护 |
+| 2026-09-20 | 浏览器划词保留三次 UIA，失败后使用 800ms + 260ms 的快速剪贴板回退，并追加目标窗口 WM_COPY | 在保留 Google Docs 可读性的前提下减少连续换词时的无效等待 |
 | 2026-09-19 | Helper 在鼠标释放入口忽略 `SnippingTool`/`ScreenClippingHost`/`ScreenSketch`/`SnipAndSketch` | 截图区域拖拽不应进入 UIA 读取或 Ctrl+C 兜底，避免影响 Windows 截图复制 |
 | 2026-09-19 | 设置页 grid tracks 改为 `minmax(0, 1fr)` 并为内容列/行增加收缩约束 | 窄屏或截图裁剪区域下不再因长文案把设置内容横向推出可视范围 |
 | 2026-09-19 | 修正弹窗内 Appearance 面板窄宽断点：普通约 507px 弹窗保持双列，`<=420px` 才切换单列 | 避免设置项纵向堆叠导致面板超出翻译窗口并被裁切 |

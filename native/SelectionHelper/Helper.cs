@@ -22,8 +22,9 @@ namespace SelectionHelper
 {
     public static class Program
     {
-        // 松开鼠标后的等待时间，让选区先稳定下来（原计划：wait 150ms）
-        private const int SettleDelayMs = 80;
+        // 松开鼠标后的等待时间，让 Chromium 画布选区先稳定下来。
+        private const int SettleDelayMs = 150;
+        private const int BrowserSettleDelayMs = 90;
         // 单次读取的超时上限；目标程序假死时不能把读取线程卡死
         private const int ReadTimeoutMs = 5000;
         // 位移超过该像素视为"拖拽选区"；否则须为双击/三击
@@ -267,6 +268,22 @@ namespace SelectionHelper
                    name == "snipandsketch";
         }
 
+        /// <summary>
+        /// Chromium 的 Google Docs 等画布可能被 UIA 标记为可写 Edit；
+        /// 这些宿主允许使用“保存并恢复剪贴板”的兜底读取选区。
+        /// </summary>
+        private static bool IsBrowserProcess(string processName)
+        {
+            string name = (processName ?? string.Empty).Trim().ToLowerInvariant();
+
+            return name == "chrome" ||
+                   name == "msedge" ||
+                   name == "brave" ||
+                   name == "opera" ||
+                   name == "vivaldi" ||
+                   name == "firefox";
+        }
+
         /// <summary>过滤自家窗口：点击翻译弹窗本身不能又触发一次划词。</summary>
         private static bool BelongsToOwnWindows(POINT pt)
         {
@@ -343,11 +360,12 @@ namespace SelectionHelper
 
         private static void Handle(ReadRequest request)
         {
-            Thread.Sleep(SettleDelayMs);
+            Thread.Sleep(IsBrowserProcess(request.ProcessName) ? BrowserSettleDelayMs : SettleDelayMs);
 
             string readText = null;
             string readMethod = "uia";
             bool inputField = false;
+            bool browserProcess = IsBrowserProcess(request.ProcessName);
 
             // UIA 与剪贴板都要 STA 且可能被假死的目标程序卡住：
             // 每次读取用全新 STA 线程 + 硬超时，卡死时直接放弃该次读取
@@ -359,6 +377,7 @@ namespace SelectionHelper
                     {
                         // Codex/Chromium 的焦点 UIA 节点可能只是 WebView 容器，
                         // 因此同时从鼠标释放位置和焦点节点向上查找 TextPattern。
+                        readMethod = "uia";
                         readText = UiAutomation.ReadSelection(request.Point);
                     }
                 }
@@ -366,16 +385,31 @@ namespace SelectionHelper
 
                 if (string.IsNullOrWhiteSpace(readText) && _clipboardFallback)
                 {
+                    if (browserProcess)
+                    {
+                        // Google Docs 画布通常不暴露 TextPattern；失败后快速走一次
+                        // 保存/恢复剪贴板路径，避免旧的 1.7s 双轮询拖住下一次 highlight。
+                        readMethod = "clipboard-browser";
+                        readText = ClipboardFallback.CopySelectedText(request.WindowHandle, true);
+                        return;
+                    }
+
                     inputField = UiAutomation.IsInputField(request.Point);
 
-                    if (inputField && !_forceClipboard)
+                    if (inputField && !_forceClipboard && !browserProcess)
                     {
-                        // 输入框中的 Ctrl+C 会改变用户剪贴板；UIA 读不到时宁可忽略，
-                        // 也不把选区复制出去。普通文本应用仍可使用原有兼容兜底。
-                        EmitLog("clipboard skipped: input field");
+                        // 真正可写的输入框中的 Ctrl+C 会改变用户剪贴板；UIA 读不到时宁可忽略。
+                        EmitLog("clipboard skipped: writable input field");
                     }
                     else
                     {
+                        if (inputField && browserProcess && !_forceClipboard)
+                        {
+                            // Chromium/Google Docs 可能把画布当成可写 Edit；兜底会在完成后
+                            // 恢复原剪贴板，因此浏览器编辑宿主允许继续读取选区。
+                            EmitLog("clipboard fallback: browser edit host");
+                        }
+
                         readMethod = "clipboard";
                         readText = ClipboardFallback.CopySelectedText(request.WindowHandle);
                     }
@@ -469,7 +503,10 @@ namespace SelectionHelper
                     var textPoint = box.PointToScreen(new System.Drawing.Point(40, 40));
                     var readPoint = new Program.POINT { X = textPoint.X, Y = textPoint.Y };
 
-                    try { readText = UiAutomation.ReadSelection(readPoint); } catch { readText = null; }
+                    if (!_forceClipboard)
+                    {
+                        try { readText = UiAutomation.ReadSelection(readPoint); } catch { readText = null; }
+                    }
 
                     if (string.IsNullOrWhiteSpace(readText) && _clipboardFallback)
                     {
@@ -608,7 +645,7 @@ namespace SelectionHelper
             Console.Out.WriteLine(sb.ToString());
         }
 
-        private static void EmitLog(string reason)
+        internal static void EmitLog(string reason)
         {
             EmitOnly(new Dictionary<string, object> { { "event", "log" }, { "reason", reason } });
         }
@@ -671,7 +708,7 @@ namespace SelectionHelper
 
         private static string ReadSelection(Program.POINT? point)
         {
-            // 三次尝试（0 / +150 / +400ms）：给 Chrome 系应用的功能激活留时间
+            // 三次尝试给 Chrome 系应用的功能激活留时间。
             for (int attempt = 0; attempt < 3; attempt++)
             {
                 string text = ReadSelectionOnce(point);
@@ -790,7 +827,7 @@ namespace SelectionHelper
             {
                 try
                 {
-                    if (Equals(element.Current.ControlType, ControlType.Edit))
+                    if (IsWritableInputElement(element))
                     {
                         return true;
                     }
@@ -804,6 +841,37 @@ namespace SelectionHelper
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// 只把 UIA 明确声明为可写 ValuePattern 的 Edit 当作输入框。
+        /// Chromium/Google Docs 画布可能复用 ControlType.Edit，但没有 ValuePattern；
+        /// 把这类节点当成输入框会错误阻断剪贴板兜底。
+        /// </summary>
+        private static bool IsWritableInputElement(AutomationElement element)
+        {
+            if (element == null || !Equals(element.Current.ControlType, ControlType.Edit))
+            {
+                return false;
+            }
+
+            try
+            {
+                object pattern;
+
+                if (!element.TryGetCurrentPattern(ValuePattern.Pattern, out pattern))
+                {
+                    return false;
+                }
+
+                ValuePattern valuePattern = pattern as ValuePattern;
+                return valuePattern != null && !valuePattern.Current.IsReadOnly;
+            }
+            catch
+            {
+                // 无法确认可写性时不阻断兜底；截图工具仍在 Hook 层提前排除。
+                return false;
+            }
         }
 
         private static string ReadSelectionFromElement(AutomationElement element)
@@ -868,6 +936,9 @@ namespace SelectionHelper
         [DllImport("user32.dll", SetLastError = true)]
         private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr SendMessage(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam);
+
         [DllImport("user32.dll")]
         private static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
 
@@ -895,12 +966,23 @@ namespace SelectionHelper
         [StructLayout(LayoutKind.Sequential)]
         private struct MOUSEINPUT { public int dx; public int dy; public uint mouseData; public uint dwFlags; public uint time; public IntPtr extraInfo; }
 
+        private const uint WM_COPY = 0x0301;
+
         public static string CopySelectedText()
         {
-            return CopySelectedText(IntPtr.Zero);
+            return CopySelectedText(IntPtr.Zero, false);
         }
 
         public static string CopySelectedText(IntPtr targetWindow)
+        {
+            return CopySelectedText(targetWindow, false);
+        }
+
+        /// <summary>
+        /// 浏览器选区使用短轮询：Ctrl+C 正常时通常几十毫秒就会出现文本，
+        /// 失败时也不能让下一次 highlight 等待旧的两轮 1.7s 超时。
+        /// </summary>
+        public static string CopySelectedText(IntPtr targetWindow, bool fast)
         {
             MSWin32.IDataObject saved = null;
 
@@ -917,13 +999,15 @@ namespace SelectionHelper
             {
                 FocusTargetWindow(targetWindow);
 
-                // 两轮 Ctrl+C：部分宿主（Chrome / Google Docs canvas 等）第一轮
-                // 可能因焦点或渲染器 IPC 未就绪而没有复制成功，第二轮补刀
-                string text = TryCopyOnce(1200);
+                int firstPollMs = fast ? 800 : 1200;
+                int retryPollMs = fast ? 260 : 500;
+
+                // 两轮 Ctrl+C：部分宿主第一轮可能因焦点或渲染器 IPC 未就绪而没有复制成功。
+                string text = TryCopyOnce(firstPollMs, targetWindow);
 
                 if (string.IsNullOrWhiteSpace(text))
                 {
-                    text = TryCopyOnce(500);
+                    text = TryCopyOnce(retryPollMs, targetWindow);
                 }
 
                 return text;
@@ -951,7 +1035,7 @@ namespace SelectionHelper
         }
 
         /// <summary>发送一次 Ctrl+C，然后在 pollMs 窗口内轮询剪贴板文本（Chrome 复制是异步的）。</summary>
-        private static string TryCopyOnce(int pollMs)
+        private static string TryCopyOnce(int pollMs, IntPtr targetWindow)
         {
             // 没有先清空时，ContainsText() 可能立即读到用户之前的剪贴板，
             // 造成把旧文本误当成当前选区。清空失败则本轮明确失败并重试。
@@ -959,13 +1043,18 @@ namespace SelectionHelper
             {
                 MSWin32.Clipboard.Clear();
             }
-            catch
+            catch (ExternalException ex)
             {
-                return null;
+                Program.EmitLog("clipboard clear failed: " + ex.GetType().Name);
+
+                // Chrome delayed-rendering 期间可能暂时拒绝 Clear，但复制结果
+                // 已经落入剪贴板；先读取一次，不要因为清空失败直接丢掉选区。
+                return ReadClipboardText();
             }
 
             if (!SendCtrlC())
             {
+                Program.EmitLog("clipboard SendInput failed");
                 return null;
             }
 
@@ -977,14 +1066,11 @@ namespace SelectionHelper
             {
                 try
                 {
-                    if (MSWin32.Clipboard.ContainsText())
-                    {
-                        text = MSWin32.Clipboard.GetText();
+                    text = ReadClipboardText();
 
-                        if (!string.IsNullOrWhiteSpace(text))
-                        {
-                            gotText = true;
-                        }
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        gotText = true;
                     }
                 }
                 catch (COMException)
@@ -998,7 +1084,68 @@ namespace SelectionHelper
                 }
             }
 
+            if (!gotText)
+            {
+                Program.EmitLog("clipboard poll empty after SendInput");
+
+                // 某些 Chromium 宿主不把 SendInput 映射到 renderer 的编辑目标，
+                // 但仍会处理目标窗口的 WM_COPY；这一步不再改动焦点，只复用当前选区。
+                if (targetWindow != IntPtr.Zero)
+                {
+                    SendMessage(targetWindow, WM_COPY, IntPtr.Zero, IntPtr.Zero);
+                    var messageDeadline = Environment.TickCount + 220;
+
+                    while (Environment.TickCount < messageDeadline)
+                    {
+                        text = ReadClipboardText();
+
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            return text;
+                        }
+
+                        Thread.Sleep(40);
+                    }
+                }
+            }
+
             return text;
+        }
+
+        /// <summary>
+        /// Chromium 可能只登记 UnicodeText 或传统 Text 其中一种格式；
+        /// 显式按两种格式尝试，避免无格式重载把异步剪贴板误判为空。
+        /// </summary>
+        private static string ReadClipboardText()
+        {
+            try
+            {
+                if (MSWin32.Clipboard.ContainsText(MSWin32.TextDataFormat.UnicodeText))
+                {
+                    string unicodeText = MSWin32.Clipboard.GetText(MSWin32.TextDataFormat.UnicodeText);
+
+                    if (!string.IsNullOrWhiteSpace(unicodeText))
+                    {
+                        return unicodeText;
+                    }
+                }
+
+                if (MSWin32.Clipboard.ContainsText(MSWin32.TextDataFormat.Text))
+                {
+                    string text = MSWin32.Clipboard.GetText(MSWin32.TextDataFormat.Text);
+
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        return text;
+                    }
+                }
+            }
+            catch (ExternalException)
+            {
+                // Chrome 的 delayed rendering 可能在本次轮询期间暂时锁住剪贴板。
+            }
+
+            return null;
         }
 
         private static bool SendCtrlC()
@@ -1016,25 +1163,50 @@ namespace SelectionHelper
                 inputs[i].u.ki.dwFlags = (i >= 2) ? KEYUP : 0;
             }
 
-            return SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT))) == inputs.Length;
+            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
+
+            if (sent != inputs.Length)
+            {
+                Program.EmitLog("clipboard SendInput count=" + sent + "/" + inputs.Length +
+                    " error=" + Marshal.GetLastWin32Error() +
+                    " size=" + Marshal.SizeOf(typeof(INPUT)));
+            }
+
+            return sent == inputs.Length;
         }
 
         private static void FocusTargetWindow(IntPtr targetWindow)
         {
             if (targetWindow == IntPtr.Zero)
             {
+                Program.EmitLog("clipboard target window missing");
                 return;
             }
 
             IntPtr root = GetAncestor(targetWindow, GA_ROOT);
 
-            if (root == IntPtr.Zero || GetForegroundWindow() == root)
+            if (root == IntPtr.Zero)
             {
+                Program.EmitLog("clipboard target root missing");
                 return;
             }
 
-            SetForegroundWindow(root);
-            Thread.Sleep(40);
+            if (GetForegroundWindow() != root)
+            {
+                // 只激活顶层浏览器窗口，不 SetFocus renderer 子窗口；后者在
+                // Google Docs 画布上可能清掉刚刚完成的视觉选区。
+                if (!SetForegroundWindow(root))
+                {
+                    Program.EmitLog("clipboard SetForegroundWindow failed");
+                }
+
+                Thread.Sleep(60);
+            }
+
+            if (GetForegroundWindow() != root)
+            {
+                Program.EmitLog("clipboard target not foreground");
+            }
         }
     }
 }

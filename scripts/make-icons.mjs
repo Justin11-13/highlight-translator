@@ -1,6 +1,6 @@
 /**
  * 图标与背景资源生成：从用户的原图产出
- *   build/icon-source.jpeg  ->  build/icon.ico（256..16 多尺寸）
+ *   build/icon-source.png   ->  build/icon.ico（256..16 多尺寸）
  *                               resources/icons/tray.png（32x32 托盘图标）
  *                               src/renderer/assets/background.jpg（q80 压缩）
  */
@@ -15,7 +15,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const sizes = [256, 128, 64, 48, 32, 16]
 
 async function main() {
-  const source = await Jimp.read(path.join(root, 'build', 'icon-source.jpeg'))
+  const source = await Jimp.read(path.join(root, 'build', 'icon-source.png'))
 
   // 各尺寸 PNG，供 png-to-ico 打包成多分辨率 ico
   const pngBuffers = []

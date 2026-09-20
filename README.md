@@ -9,6 +9,10 @@ Highlight Text → Mouse Up → Read Selection (UIA / Clipboard)
               → Liquid Glass Popup
 ```
 
+## 当前版本
+
+最新稳定版为 `v1.0.2`，提供 Windows x64 NSIS 安装包：[GitHub Releases](https://github.com/Justin11-13/highlight-translator/releases/tag/v1.0.2)。本版本重点修复 Chromium/Google Docs 连续划词时的选区读取与剪贴板回退路径，并保留原有剪贴板内容。
+
 ## 功能（MVP 全清单）
 
 | 状态 | 功能 |
@@ -44,11 +48,12 @@ Highlight Text → Mouse Up → Read Selection (UIA / Clipboard)
 | 已实现 | 真实 highlight 到达时重新提升 popup 的 Windows z-order（floating + moveTop），但不激活窗口、不抢当前输入焦点 |
 | 已实现 | Appearance 展开期间外观刷新使用真实 BrowserWindow 卡片尺寸；玻璃模糊最低为 8px，避免背景照片裸露与尺寸回写错位 |
 | 已实现 | 自动忽略 Windows Snipping Tool 等截图工具的区域拖拽；同时检查 MouseDown/MouseUp 进程，截图遮罩先关闭也不会触发 Ctrl+C 兜底 |
+| 已实现 | 剪贴板兜底跳过原生可写输入框；Chrome/Edge 等浏览器优先使用绑定目标窗口的保存并恢复剪贴板路径，Google Docs 画布即使误报为 `Edit` 也不会被静默跳过 |
 | 已实现 | 个性化外观：设置窗口可换背景照片；popup 提供字体、文字颜色、模糊、尺寸和字号设置，背景保持默认 Liquid Glass 原色 |
 | 已实现 | 系统托盘 + 开机自启 + NSIS 安装器 + 安装/部署后快捷方式校验 |
 | 已实现 | 错误处理（过长选区“Translate Anyway”、模型缺失、服务不可用重试、静默忽略空选区） |
 | 已实现 | 响应优化：本地翻译服务健康后复用就绪状态；外观滑杆通过 `input` 事件逐帧预览、100ms 后合并持久化，兼顾实时反馈与 IPC/SQLite 写入 |
-| 已实现 | 选区读取稳定等待从 150ms 优化为 80ms，UIA 重试间隔缩短为 80ms/140ms，保持三次重试覆盖 |
+| 已实现 | 选区读取稳定等待为 150ms（浏览器 90ms）；浏览器保留三次 UIA 机会，失败后剪贴板回退缩短为 800ms + 260ms，避免连续 highlight 被旧请求拖住 |
 | 已实现 | Settings 主体默认采用与顶部 Header 一致的深色中性玻璃；默认白色 tint 不再把内容区域渲染成高亮白色 |
 | 已实现 | 旧版 Settings 的 90%/30px 白色玻璃参数会一次性迁移为 Header 默认值；Appearance 主窗口透明度下限可调至 2%，Popup 固定无底色 |
 | 已实现 | Liquid Glass 顶部 specular、内侧白色高光线和 Popup 蓝/青色光晕已移除，Popup 外层改为无底色毛玻璃 |
@@ -139,27 +144,31 @@ powershell -ExecutionPolicy Bypass -File scripts/install-app.ps1
 ## 验证状态
 
 - [x] 已验证：Helper 受控自测（`npm run helper`）——固定选区、协议输出、数值坐标和 Unicode 文本校验；真实 UIA/Hook 由 `npm run test:helper` 覆盖
-- [x] 已验证：**真实鼠标双击模拟测试**（`npm run test:helper`）——LL 钩子捕获 → 选区读取 → selection 事件全链路 PASS
+- [ ] 待人工验证：**真实鼠标双击模拟测试**（`npm run test:helper`）——当前自动化宿主的 `SendInput` 返回 `ERROR_ACCESS_DENIED`，不能将沙箱失败计为全链路 PASS
 - [x] 已验证：LibreTranslate 端到端（`npm run test:translate`）——服务健康、en→zh、zh→en PASS
 - [x] 已验证：TypeScript 类型检查、Electron 构建和 1.0.2 NSIS 打包（`npm run typecheck`、`npm run build`、`npm run dist`）
 - [x] 已验证：弹窗/设置窗口 UI 截图（`npm run shots`）——主窗口 Appearance 与 popup Appearance 分组均渲染，Settings 面板未出现越界
+- [x] 已验证：用户提供的 Logo 已移除外部白色背景，并从透明 PNG 统一生成 Windows 多尺寸 `build/icon.ico` 与 `resources/icons/tray.png`
 - [x] 已验证：popup 卡片尺寸始终等于 BrowserWindow client size；内嵌 Settings 无 scrollbar，`clientHeight === scrollHeight`
-- [x] 已验证：严格 Hook/UIA 测试只接受测试窗体自身的 `process=powershell` 与固定测试文本，不再把其他窗口的 selection 当成 PASS
+- [ ] 待人工验证：严格 Hook/UIA 测试只接受测试窗体自身的 `process=powershell` 与固定测试文本；当前宿主无法完成注入式鼠标/键盘验证
 - [x] 已验证：LibreTranslate 本地服务健康，en→zh 176ms/35ms、zh→en 383ms，均低于 Implementation Plan 的 1 秒目标
 - [x] 已实现：popup/settings renderer 增加 CSP；继续保持 `contextIsolation: true`、`nodeIntegration: false`、`sandbox: true`
 - [ ] 待人工验证：受当前自动化宿主限制，注入式 `Ctrl+C` 被拦截；Clipboard Fallback 需在正常桌面应用中实测，不能用失败的沙箱注入冒充通过
-- [x] 已验证：Helper 自测和真实鼠标 Hook 回归（`npm run helper`、`npm run test:helper`）——正常选区仍经 UIA 读取
-- [x] 已实现：UIA 判断为 `Edit` 输入控件时，不进入 Ctrl+C 剪贴板兜底路径
+- [x] 已验证：Helper 受控自测（`npm run helper`）——正常选区仍经 UIA 读取；强制兜底自测明确记录当前宿主 `SendInput` 被拒绝
+- [x] 已实现：原生 UIA `Edit` 输入控件不进入 Ctrl+C 剪贴板兜底；Chrome/Edge 等浏览器编辑宿主优先走绑定目标窗口、保存并恢复剪贴板的兜底路径
 - [x] 已实现：`SnippingTool`、`ScreenClippingHost`、`ScreenSketch` 等截图进程在 MouseDown/MouseUp 任一阶段命中都会被 Helper 忽略
 - [x] 已验证：最终安装版启动日志——`packaged=true`、Helper `ready`、LibreTranslate `service healthy`、真实选区产生翻译请求
 - [x] 已验证：最终 NSIS 安装与桌面快捷方式——TargetPath 指向已安装 exe，Helper/模型安装资源存在
 - [x] 已验证：1.0.2 通过 `scripts/deploy-app.ps1` 同步到安装目录，重建桌面快捷方式并从 shortcut 启动；本机直接运行新 NSIS stub 会被 WDAC/应用程序控制拦截，未将其误报为安装成功
 - [x] 已实现：Helper 会从鼠标释放坐标查找 UIA ControlView/RawView 父级选区；剪贴板兜底会对准目标窗口并避免读取旧剪贴板
+- [x] 已实现：浏览器划词先走快速 UIA，只有读不到时才进入短轮询剪贴板兜底；连续换词不再默认等待完整两轮回退
 - [x] 已验证：Codex/ChatGPT Windows App 实际划词——Helper 捕获 `process=ChatGPT`，UIA 读取成功，并进入 LibreTranslate 翻译流程
 - [ ] 待人工验证：Windows TTS 实际语音输出（取决于系统安装的中/英文语音包）
 - [ ] 待人工验证：在真实桌面上点击 Settings 标题栏的最小化/最大化/还原并拖动边缘 resize
 - [ ] 待人工验证：真实 Windows 桌面上拖动主窗口与 popup Blur，确认透明卡片连续更新且 12px 不再出现黑色系统材质
 - [ ] 待人工验证：真实 Windows 桌面上把 popup 拖向四个边缘及多显示器边界，确认每帧位置夹紧且不会离开当前显示器 workArea
+- [ ] 待人工验证：Chrome/Edge 的 Google Docs 真实选区可触发 Clipboard Fallback，且完成后原有系统剪贴板内容保持不变
+- [ ] 待人工验证：Edge 内置 PDF Viewer 的 UIA 文字层错位会返回少首字或跨词文字；自动 Ctrl+C 在当前桌面未取得文字且会引入数秒等待，因此未保留该无效路径
 - [ ] 待人工验证：真实 Windows 桌面确认 Blur 8/24/48px 差异明显，且 card 后方不再出现第二层方形背景
 - [ ] 待人工验证：使用 Windows 截图区域拖拽后直接粘贴图片，确认 Highlight Translator 未触发翻译或覆盖截图剪贴板
 - [ ] 待人工验证：首次安装本地引擎/模型按钮（需要真实联网下载约 200MB）
@@ -171,7 +180,7 @@ powershell -ExecutionPolicy Bypass -File scripts/install-app.ps1
    - 因此 Helper 采用 PowerShell 宿主 + 内存编译 C#（`native/SelectionHelper/`）。
    - 打包/安装阶段新生成的 NSIS stub 可能被 WDAC/云信誉拦截；本机迭代优先使用 `scripts/deploy-app.ps1`，正式分发仍保留 NSIS 安装器。
 2. UIA 读不到的宿主（部分 PDF 插件）需在设置里开启“剪贴板兜底”；
-   兜底会短暂模拟 Ctrl+C 并恢复剪贴板；检测为输入框时会跳过兜底（密码管理器场景仍请保持关闭）。
+   兜底会短暂模拟 Ctrl+C 并恢复剪贴板；原生可写输入框会跳过，浏览器编辑宿主允许兜底（密码管理器场景仍请保持关闭）。
 3. 提权进程（以管理员运行的目标应用）无法被非提权的 Helper 读取。
 4. 翻译质量取决于 Argos opus-mt 模型，长句可拆分后翻译。
 5. Windows TTS 需要系统安装对应语言的语音包；没有匹配语音时会记录错误，不会切换到云端或其他翻译实现。
