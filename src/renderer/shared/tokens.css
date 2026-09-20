@@ -16,6 +16,10 @@
   --ht-fill-hover: rgba(255, 255, 255, 0.16);
   /* keeps glass text readable over bright desktop content */
   --ht-text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), 0 0 8px rgba(0, 0, 0, 0.25);
+  --ht-action-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ht-action-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --ht-action-press: cubic-bezier(0.32, 0, 0.67, 0);
+  --ht-action-duration: 150ms;
 }
 
 * {
@@ -34,6 +38,7 @@ body,
 body {
   overflow: hidden;
   font-family: var(--ht-font-en), var(--ht-font-zh);
+  font-optical-sizing: auto;
   color: var(--ht-text);
   text-shadow: var(--ht-text-shadow);
   user-select: none;
@@ -119,7 +124,7 @@ body {
   filter: blur(calc(var(--ht-glass-blur, 10px) * 2.6));
   opacity: calc(1 - var(--ht-glass-blur-progress, 0) * 0.32);
   transform: scale(var(--ht-glass-blur-scale, 1.033));
-  transition: filter 120ms ease, opacity 120ms ease, transform 120ms ease;
+  transition: filter 180ms var(--ht-action-spring), opacity 180ms ease, transform 180ms var(--ht-action-spring);
 }
 
 /* =========================================================
@@ -130,6 +135,84 @@ body {
 .glass-btn,
 .titlebar-btn {
   color: var(--ht-text);
+}
+
+/* 所有可操作控件共用同一套轻量反馈；只改变视觉，不影响布局。 */
+button,
+select,
+input[type='range'],
+input[type='checkbox'],
+input[type='color'] {
+  transition:
+    transform var(--ht-action-duration) var(--ht-action-ease),
+    background-color var(--ht-action-duration) ease,
+    border-color var(--ht-action-duration) ease,
+    box-shadow var(--ht-action-duration) ease,
+    filter var(--ht-action-duration) ease,
+    opacity var(--ht-action-duration) ease;
+}
+
+button:not(:disabled):hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+button:not(:disabled):active {
+  transform: translateY(0) scale(0.96);
+  filter: brightness(0.98);
+  transition-duration: 80ms;
+  transition-timing-function: var(--ht-action-press);
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(150, 210, 255, 0.2);
+}
+
+select:not(:disabled):hover,
+input[type='range']:not(:disabled):hover,
+input[type='color']:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+input[type='range']:not(:disabled):active {
+  filter: brightness(1.16);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .liquid-glass-card,
+  .glass-filter-layer,
+  .settings-titlebar,
+  .pop-header {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-color: rgba(20, 24, 32, 0.94) !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --ht-text: rgba(255, 255, 255, 1);
+    --ht-text-dim: rgba(255, 255, 255, 0.82);
+    --ht-stroke: rgba(255, 255, 255, 0.42);
+  }
+
+  .liquid-glass-card::before {
+    border-color: var(--ht-stroke);
+  }
 }
 
 ::-webkit-scrollbar {

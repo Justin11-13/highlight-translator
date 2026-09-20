@@ -38,7 +38,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: popup-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: popup-in 280ms var(--ht-action-spring);
+  will-change: transform, opacity, filter;
 
   /* BrowserWindow 与卡片同尺寸，不绘制卡片外阴影或顶部高光。 */
   box-shadow: none;
@@ -49,16 +50,18 @@
 }
 
 .popup-root.popup-closing .liquid-glass-card {
-  animation: popup-out 140ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: popup-out 190ms var(--ht-action-press) forwards;
 }
 
 @keyframes popup-in {
   from {
     opacity: 0;
-    transform: translateY(4px) scale(0.99);
+    filter: blur(5px);
+    transform: translateY(8px) scale(0.975);
   }
   to {
     opacity: 1;
+    filter: blur(0);
     transform: translateY(0) scale(1);
   }
 }
@@ -66,11 +69,13 @@
 @keyframes popup-out {
   from {
     opacity: 1;
+    filter: blur(0);
     transform: translateY(0) scale(1);
   }
   to {
     opacity: 0;
-    transform: translateY(3px) scale(0.99);
+    filter: blur(4px);
+    transform: translateY(5px) scale(0.98);
   }
 }
 
@@ -183,6 +188,11 @@
   flex-direction: column;
   gap: 10px;
   overflow: hidden;
+}
+
+/* Appearance 展开时锁定打开前的正文高度；新增的窗口空间只分配给设置面板。 */
+.popup-card.panel-open .pop-body {
+  flex: 0 0 var(--ht-panel-body-height, 278px);
 }
 
 /* 原文区（独立 div）：与译文区等分空间 */
@@ -527,14 +537,19 @@
 .settings-panel {
   position: relative;
   z-index: 8;
-  flex: 0 0 auto;
+  flex: 1 1 0;
+  min-height: 0;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.5) rgba(255, 255, 255, 0.07);
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 15px;
   margin-top: 12px;
-  padding: 13px;
+  padding: 16px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 16px;
   /* LiquidGlass 的 inline background/backdrop-filter 提供当前外观参数。 */
@@ -543,12 +558,49 @@
   color: var(--ht-text);
   user-select: none;
   isolation: isolate;
+  animation: settings-panel-in 260ms var(--ht-action-spring);
+  will-change: transform, opacity, filter;
+}
+
+@keyframes settings-panel-in {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+.settings-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.settings-panel::-webkit-scrollbar-track {
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.settings-panel::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.5);
+  background-clip: padding-box;
+}
+
+.settings-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.68);
+  background-clip: padding-box;
 }
 
 .panel-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  margin-bottom: 2px;
 }
 
 .panel-title {
@@ -599,7 +651,8 @@
 .panel-presets {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
+  margin-top: 7px;
 }
 
 .preset-btn {
@@ -607,8 +660,8 @@
   flex: 1 1 96px;
   display: flex;
   align-items: center;
-  gap: 3px;
-  padding: 6px 8px;
+  gap: 8px;
+  padding: 7px 10px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.08);
@@ -638,7 +691,7 @@
 .panel-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 9px;
+  gap: 12px;
 }
 
 .panel-item {
@@ -671,7 +724,7 @@
 .panel-select {
   width: 100%;
   height: 34px;
-  margin-top: 5px;
+  margin-top: 8px;
   padding: 0 34px 0 11px;
   box-sizing: border-box;
   border: 1px solid rgba(255, 255, 255, 0.24);
@@ -778,7 +831,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 20px;
   min-height: 48px;
   padding: 8px 10px;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -792,6 +845,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 3px;
 }
 
 .toggle-title {
@@ -802,7 +856,6 @@
 }
 
 .toggle-sub {
-  margin-top: 2px;
   font-family: var(--ht-zh-font);
   font-size: 10px;
   color: var(--ht-text-dim);

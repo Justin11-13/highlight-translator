@@ -94,6 +94,7 @@ export default function App() {
   const [closing, setClosing] = useState(false)
   const [copied, setCopied] = useState(false)
   const [panelOpen, setPanelOpen] = useState(DEMO_PARAMS.get('panel') === '1')
+  const [panelBodyHeight, setPanelBodyHeight] = useState<number | null>(null)
   const [appearance, setAppearance] = useState<PopupAppearance>(DEFAULT_APPEARANCE)
   const [originalInput, setOriginalInput] = useState('')
   const inputTranslateTimer = useRef<number | null>(null)
@@ -269,6 +270,10 @@ export default function App() {
   /** 开关内嵌设置面板；主进程记录原始窗口边界并按工作区展开/恢复。 */
   const togglePanel = () => {
     const next = !panelOpen
+    if (next) {
+      const body = document.querySelector<HTMLElement>('.pop-body')
+      setPanelBodyHeight(body?.getBoundingClientRect().height ?? null)
+    }
     setPanelOpen(next)
     ht?.popup?.setSettingsOpen(next)
   }
@@ -465,7 +470,8 @@ export default function App() {
         tintAlpha={Math.max(POPUP_FROSTED_MIN_OPACITY, appearance.glassOpacity)}
         tintColor="#47494f"
         blur={appearance.glassBlur}
-        className="popup-card"
+        className={`popup-card${panelOpen ? ' panel-open' : ''}`}
+        style={panelBodyHeight === null ? undefined : ({ '--ht-panel-body-height': `${panelBodyHeight}px` } as React.CSSProperties)}
       >
         {/* 2. header：玻璃拖动头（标题/副标题/把手 + 图钉 + 关闭） */}
         <div

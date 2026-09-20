@@ -52,6 +52,12 @@ Highlight Text → Mouse Up → Read Selection (UIA / Clipboard)
 | 已实现 | 旧版 Settings 的 90%/30px 白色玻璃参数会一次性迁移为 Header 默认值；Appearance 主窗口透明度下限可调至 2%，与 Popup tint 参数独立 |
 | 已实现 | Liquid Glass 顶部 specular、内侧白色高光线和 Popup 蓝/青色光晕已移除，Popup 外层改为无底色毛玻璃 |
 | 已实现 | Settings 主体与 Header 共用相同 LiquidGlass 参数通路；Appearance 的 opacity、blur、color 和背景设置可即时调节主体；Popup 参数也即时推送到已显示的翻译窗口 |
+| 已实现 | Popup 内嵌 Appearance 使用弹窗扩展后的剩余高度；内容超出时在面板内部滚动，并显示可拖动的窄型半透明 scrollbar |
+| 已实现 | 打开 Popup 内嵌 Appearance 时锁定原文与译文区域的原始高度，新增窗口高度只分配给设置面板 |
+| 已实现 | Popup 与 Settings 的所有可操作控件统一提供 hover、按压、键盘 focus 动画反馈；窗口和 Appearance 使用可中断感更强的材质进出过渡，并遵循 reduced-motion、reduced-transparency 与高对比度偏好 |
+| 已实现 | Popup 内嵌 Appearance 增加面板内边距与控件分组间距，避免设置项紧贴边缘或彼此拥挤；滚动区域保持可用 |
+| 已实现 | Appearance 主题按钮、开关和字体选择增加文字与控件间距，提升小尺寸弹窗中的可读性 |
+| 已实现 | Popup Appearance 的 FONT THEMES 标题说明与主题按钮之间增加独立留白，避免视觉贴合 |
 
 ## 目录结构
 
