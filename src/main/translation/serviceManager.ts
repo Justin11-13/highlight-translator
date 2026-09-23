@@ -13,6 +13,7 @@ import { log } from '../logger'
 export const SERVICE_URL = 'http://127.0.0.1:5000'
 const HEALTH_TIMEOUT_MS = 1500
 const START_TIMEOUT_MS = 120_000
+const HEALTH_POLL_INTERVAL_MS = 250
 
 let child: ChildProcess | null = null
 let stopped = true
@@ -77,12 +78,15 @@ export async function ensureService(): Promise<boolean> {
 }
 
 async function ensureServiceInternal(): Promise<boolean> {
+  const startedAt = Date.now()
+
   if (serviceReady) {
     return true
   }
 
   if (await isHealthy()) {
     serviceReady = true
+    log(`libretranslate service ready in ${Date.now() - startedAt}ms`)
     return true
   }
 
@@ -94,7 +98,10 @@ async function ensureServiceInternal(): Promise<boolean> {
   } else {
     stopped = false
     serviceStartFailed = false
-    startService()
+
+    if (!startService()) {
+      return false
+    }
   }
 
   const deadline = Date.now() + START_TIMEOUT_MS
@@ -106,18 +113,22 @@ async function ensureServiceInternal(): Promise<boolean> {
 
     if (await isHealthy()) {
       serviceReady = true
-      log('libretranslate service healthy')
+      log(`libretranslate service healthy in ${Date.now() - startedAt}ms`)
       return true
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 700))
+    if (serviceStartFailed && !child) {
+      return false
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, HEALTH_POLL_INTERVAL_MS))
   }
 
   log('libretranslate service did not become healthy in time')
   return false
 }
 
-function startService(): void {
+function startService(): boolean {
   const exe = libreTranslateExe()
   log('starting libretranslate:', exe)
 
@@ -128,40 +139,59 @@ function startService(): void {
       { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }
     )
   } catch (error) {
-    log('failed to spawn libretranslate:', error as Error)
+    const details = error as NodeJS.ErrnoException
+    log(
+      `failed to spawn libretranslate (code=${details.code ?? 'unknown'}, errno=${details.errno ?? 'unknown'}, syscall=${details.syscall ?? 'unknown'})`,
+      error as Error
+    )
     child = null
-    return
+    serviceStartFailed = true
+    return false
   }
 
-  child.stdout!.on('data', (chunk: Buffer) => {
+  const serviceProcess = child
+
+  serviceProcess.stdout!.on('data', (chunk: Buffer) => {
     const line = chunk.toString().trim()
     if (line) {
       log('libretranslate:', line)
     }
   })
 
-  child.stderr!.on('data', (chunk: Buffer) => {
+  serviceProcess.stderr!.on('data', (chunk: Buffer) => {
     const line = chunk.toString().trim()
     if (line) {
       log('libretranslate stderr:', line)
     }
   })
 
-  child.on('error', (error) => {
-    log('libretranslate process failed:', error)
-    serviceStartFailed = true
-    serviceReady = false
-    child = null
+  serviceProcess.on('error', (error) => {
+    const details = error as NodeJS.ErrnoException
+    log(
+      `libretranslate process failed (code=${details.code ?? 'unknown'}, errno=${details.errno ?? 'unknown'}, syscall=${details.syscall ?? 'unknown'})`,
+      error
+    )
+
+    if (child === serviceProcess) {
+      serviceStartFailed = true
+      serviceReady = false
+      child = null
+    }
   })
 
-  child.on('exit', (code) => {
+  serviceProcess.on('exit', (code) => {
     log(`libretranslate exited (code ${code})`)
-    if (code !== 0) {
-      serviceStartFailed = true
+
+    if (child === serviceProcess) {
+      if (!serviceReady || code !== 0) {
+        serviceStartFailed = true
+      }
+      serviceReady = false
+      child = null
     }
-    serviceReady = false
-    child = null
   })
+
+  return true
 }
 
 /**

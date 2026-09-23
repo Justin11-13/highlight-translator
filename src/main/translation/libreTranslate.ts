@@ -17,7 +17,7 @@ export interface TranslationProviderResult {
 }
 
 export interface TranslationProvider {
-  translate(text: string, source: string, target: string): Promise<TranslationProviderResult>
+  translate(text: string, source: string, target: string, signal?: AbortSignal): Promise<TranslationProviderResult>
   ensureModel(key: ModelKey): Promise<void>
   isDownloading(key: ModelKey): boolean
 }
@@ -26,9 +26,15 @@ const downloading = new Set<ModelKey>()
 const installPromises = new Map<ModelKey, Promise<void>>()
 
 /** 带超时的本地 POST。 */
-async function post(pathname: string, body: unknown, timeoutMs = 30_000): Promise<Response> {
+async function post(pathname: string, body: unknown, timeoutMs = 30_000, signal?: AbortSignal): Promise<Response> {
   const controller = new AbortController()
+  const abortFromRequest = (): void => controller.abort()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  signal?.addEventListener('abort', abortFromRequest, { once: true })
+
+  if (signal?.aborted) {
+    controller.abort()
+  }
 
   try {
     return await fetch(`${SERVICE_URL}${pathname}`, {
@@ -39,6 +45,7 @@ async function post(pathname: string, body: unknown, timeoutMs = 30_000): Promis
     })
   } finally {
     clearTimeout(timer)
+    signal?.removeEventListener('abort', abortFromRequest)
   }
 }
 
@@ -69,19 +76,20 @@ export const libreTranslateProvider: TranslationProvider = {
     }
   },
 
-  async translate(text: string, source: string, target: string): Promise<TranslationProviderResult> {
+  async translate(text: string, source: string, target: string, signal?: AbortSignal): Promise<TranslationProviderResult> {
     const healthy = await ensureService()
 
     if (!healthy) {
       throw new Error('translation service unavailable')
     }
 
+    const requestStartedAt = Date.now()
     const response = await post('/translate', {
       q: text,
       source,
       target,
       format: 'text'
-    })
+    }, 30_000, signal)
 
     if (!response.ok) {
       throw new Error(`libretranslate responded ${response.status}`)
@@ -95,6 +103,8 @@ export const libreTranslateProvider: TranslationProvider = {
     if (!data.translatedText) {
       throw new Error('empty translation output')
     }
+
+    log(`libretranslate translated ${source}->${target} (${text.length} chars) in ${Date.now() - requestStartedAt}ms`)
 
     return {
       translatedText: data.translatedText,

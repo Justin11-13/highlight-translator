@@ -10,6 +10,7 @@ let lastTimestamp = 0
 let idCounter = 0
 let manualIdCounter = -10
 let busy = false
+let activeTranslationAbort: AbortController | null = null
 
 interface TranslationRequest {
   id: number
@@ -94,6 +95,7 @@ export function handleSelection(event: SelectionEventData): void {
 async function runTranslation(request: TranslationRequest): Promise<void> {
   if (busy) {
     pending = request
+    activeTranslationAbort?.abort()
     return
   }
 
@@ -104,9 +106,11 @@ async function runTranslation(request: TranslationRequest): Promise<void> {
     while (currentRequest) {
       const current = currentRequest
       pending = null
+      const abortController = new AbortController()
+      activeTranslationAbort = abortController
 
       try {
-        const outcome = await translateText(current.text, current.processName)
+        const outcome = await translateText(current.text, current.processName, abortController.signal)
         const next = pending
 
         // 如果用户在翻译期间又选中了新文本，不把旧结果覆盖到新选区上。
@@ -132,6 +136,11 @@ async function runTranslation(request: TranslationRequest): Promise<void> {
           continue
         }
 
+        if (abortController.signal.aborted) {
+          currentRequest = null
+          continue
+        }
+
         if (error instanceof TranslationError) {
           showPopup({
             id: current.id,
@@ -154,6 +163,10 @@ async function runTranslation(request: TranslationRequest): Promise<void> {
         }
 
         currentRequest = null
+      } finally {
+        if (activeTranslationAbort === abortController) {
+          activeTranslationAbort = null
+        }
       }
     }
   } finally {

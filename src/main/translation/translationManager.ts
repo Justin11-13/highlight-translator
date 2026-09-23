@@ -46,7 +46,7 @@ function cacheKey(text: string, source: string, target: string): string {
  * 翻译主流程：缓存查找 -> LibreTranslate -> 写缓存/历史。
  * 缓存命中时几乎零延迟（原计划 Phase 9）。
  */
-export async function translateText(text: string, processName = ''): Promise<TranslateOutcome> {
+export async function translateText(text: string, processName = '', signal?: AbortSignal): Promise<TranslateOutcome> {
   const settings = getSettings()
   const normalizedText = normalizeTranslationInput(text)
 
@@ -90,8 +90,13 @@ export async function translateText(text: string, processName = ''): Promise<Tra
   let result: { translatedText: string; detectedLanguage: string }
 
   try {
-    result = await libreTranslateProvider.translate(normalizedText, 'auto', target)
+    // 本地已经识别出方向，直接告诉 LibreTranslate，跳过重复的 auto 语言检测。
+    result = await libreTranslateProvider.translate(normalizedText, source, target, signal)
   } catch (error) {
+    if (signal?.aborted) {
+      throw error
+    }
+
     log('translation failed:', error as Error)
     throw new TranslationError('service_unavailable')
   }

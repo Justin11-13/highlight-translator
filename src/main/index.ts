@@ -55,6 +55,11 @@ async function onReady(): Promise<void> {
 
   registerIpc()
 
+  // 先创建首屏窗口，让 Electron 开始加载 renderer，再启动后台进程。
+  if (!getSettings().startMinimized || isFirstRun() || TEST_MODE) {
+    openSettings()
+  }
+
   if (!TEST_MODE) {
     createTray(quitApp)
     // 全局划词检测（Phase 4/7）
@@ -87,10 +92,6 @@ async function onReady(): Promise<void> {
 
   }
 
-  // 首次运行或未设置静默启动时，打开设置窗口引导用户
-  if (!getSettings().startMinimized || isFirstRun() || TEST_MODE) {
-    openSettings()
-  }
 }
 
 function quitApp(): void {
