@@ -21,3 +21,7 @@ services/translation/models/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+/.codex-finalizer-pitch/
+/.codex-pitch-build/
+/artifacts/

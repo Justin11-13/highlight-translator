@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Liquid Glass V6</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- =========================================
+         SVG FILTER
+    ========================================== -->
+
+    <svg
+        class="svg-filters"
+        width="0"
+        height="0"
+        aria-hidden="true"
+    >
+        <defs>
+
+            <filter
+                id="liquid-glass-filter"
+                filterUnits="userSpaceOnUse"
+                primitiveUnits="userSpaceOnUse"
+                x="0"
+                y="0"
+                width="470"
+                height="290"
+                color-interpolation-filters="sRGB"
+            >
+
+                <feImage
+                    id="displacement-image"
+                    x="0"
+                    y="0"
+                    width="470"
+                    height="290"
+                    preserveAspectRatio="none"
+                    result="displacementMap"
+                />
+
+                <feDisplacementMap
+                    id="displacement-filter"
+                    in="SourceGraphic"
+                    in2="displacementMap"
+                    scale="45"
+                    xChannelSelector="R"
+                    yChannelSelector="G"
+                    result="refracted"
+                />
+
+                <feImage
+                    id="specular-image"
+                    x="0"
+                    y="0"
+                    width="470"
+                    height="290"
+                    preserveAspectRatio="none"
+                    result="specularMap"
+                />
+
+                <feBlend
+                    in="refracted"
+                    in2="specularMap"
+                    mode="screen"
+                />
+
+            </filter>
+
+        </defs>
+    </svg>
+
+
+    <!-- =========================================
+         WORKSPACE
+    ========================================== -->
+
+    <main class="workspace">
+
+        <!-- PREVIEW -->
+
+        <section class="preview-area">
+
+            <div class="glass-card">
+
+                <div class="glass-content">
+
+                    <div class="time-badge">
+
+                        <span id="currentTimeDisplay">
+                            12:00
+                        </span>
+
+                        <span id="materialModeDisplay">
+                            DAY
+                        </span>
+
+                    </div>
+
+
+                    <h1>
+                        Liquid Glass
+                    </h1>
+
+                    <p>
+                        24-Hour Optical Material
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =====================================
+             CONTROL PANEL
+        ====================================== -->
+
+        <aside class="control-panel">
+
+            <div class="panel-header">
+
+                <h2>
+                    Glass Controls
+                </h2>
+
+                <p>
+                    Time-Aware Liquid Glass V6
+                </p>
+
+            </div>
+
+
+            <!-- =================================
+                 TIME
+            ================================== -->
+
+            <section class="control-section">
+
+                <h3>Time System</h3>
+
+
+                <div class="switch-row">
+
+                    <div>
+                        <strong>Auto Time</strong>
+                        <small>Use device time</small>
+                    </div>
+
+                    <label class="switch">
+
+                        <input
+                            id="autoTime"
+                            type="checkbox"
+                            checked
+                        >
+
+                        <span class="switch-track"></span>
+
+                    </label>
+
+                </div>
+
+
+                <div class="switch-row">
+
+                    <div>
+                        <strong>Time Material</strong>
+                        <small>Blend Day / Night material</small>
+                    </div>
+
+                    <label class="switch">
+
+                        <input
+                            id="timeMaterialEnabled"
+                            type="checkbox"
+                            checked
+                        >
+
+                        <span class="switch-track"></span>
+
+                    </label>
+
+                </div>
+
+
+                <div class="switch-row">
+
+                    <div>
+                        <strong>Time Lighting</strong>
+                        <small>24-hour clockwise rim light</small>
+                    </div>
+
+                    <label class="switch">
+
+                        <input
+                            id="timeLightingEnabled"
+                            type="checkbox"
+                            checked
+                        >
+
+                        <span class="switch-track"></span>
+
+                    </label>
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="manualTime">
+                            Time of Day
+                        </label>
+
+                        <span id="manualTimeValue"></span>
+
+                    </div>
+
+                    <input
+                        id="manualTime"
+                        type="range"
+                        min="0"
+                        max="24"
+                        step="0.05"
+                        value="12"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="sunrise">
+                            Sunrise
+                        </label>
+
+                        <span id="sunriseValue"></span>
+
+                    </div>
+
+                    <input
+                        id="sunrise"
+                        type="range"
+                        min="4"
+                        max="10"
+                        step="0.1"
+                        value="6.5"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="sunset">
+                            Sunset
+                        </label>
+
+                        <span id="sunsetValue"></span>
+
+                    </div>
+
+                    <input
+                        id="sunset"
+                        type="range"
+                        min="16"
+                        max="22"
+                        step="0.1"
+                        value="19"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="transitionWidth">
+                            Dawn / Dusk Blend
+                        </label>
+
+                        <span id="transitionWidthValue"></span>
+
+                    </div>
+
+                    <input
+                        id="transitionWidth"
+                        type="range"
+                        min="0.1"
+                        max="3"
+                        step="0.1"
+                        value="1"
+                    >
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================
+                 GEOMETRY
+            ================================== -->
+
+            <section class="control-section">
+
+                <h3>Glass Geometry</h3>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="radius">
+                            Radius
+                        </label>
+
+                        <span id="radiusValue"></span>
+
+                    </div>
+
+                    <input
+                        id="radius"
+                        type="range"
+                        min="10"
+                        max="80"
+                        step="1"
+                        value="38"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="bezelWidth">
+                            Bezel Width
+                        </label>
+
+                        <span id="bezelWidthValue"></span>
+
+                    </div>
+
+                    <input
+                        id="bezelWidth"
+                        type="range"
+                        min="10"
+                        max="100"
+                        step="1"
+                        value="40"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="glassThickness">
+                            Glass Thickness
+                        </label>
+
+                        <span id="glassThicknessValue"></span>
+
+                    </div>
+
+                    <input
+                        id="glassThickness"
+                        type="range"
+                        min="2"
+                        max="40"
+                        step="1"
+                        value="16"
+                    >
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================
+                 REFRACTION + GLOBAL BLUR
+            ================================== -->
+
+            <section class="control-section">
+
+                <h3>Optical Material</h3>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="refractionStrength">
+                            Refraction
+                        </label>
+
+                        <span id="refractionStrengthValue"></span>
+
+                    </div>
+
+                    <input
+                        id="refractionStrength"
+                        type="range"
+                        min="0"
+                        max="2"
+                        step="0.05"
+                        value="0.8"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="svgScale">
+                            Displacement Scale
+                        </label>
+
+                        <span id="svgScaleValue"></span>
+
+                    </div>
+
+                    <input
+                        id="svgScale"
+                        type="range"
+                        min="0"
+                        max="120"
+                        step="1"
+                        value="45"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="edgeFalloffPower">
+                            Edge Falloff
+                        </label>
+
+                        <span id="edgeFalloffPowerValue"></span>
+
+                    </div>
+
+                    <input
+                        id="edgeFalloffPower"
+                        type="range"
+                        min="0.5"
+                        max="3"
+                        step="0.05"
+                        value="1.35"
+                    >
+
+                </div>
+
+
+                <!-- GLOBAL BLUR -->
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="blur">
+                            Blur
+                        </label>
+
+                        <span id="blurValue"></span>
+
+                    </div>
+
+                    <input
+                        id="blur"
+                        type="range"
+                        min="0"
+                        max="10"
+                        step="0.1"
+                        value="0.3"
+                    >
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================
+                 LIGHTING
+            ================================== -->
+
+            <section class="control-section">
+
+                <h3>Lighting</h3>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="rimLightStrength">
+                            Rim Light
+                        </label>
+
+                        <span id="rimLightStrengthValue"></span>
+
+                    </div>
+
+                    <input
+                        id="rimLightStrength"
+                        type="range"
+                        min="0"
+                        max="4"
+                        step="0.05"
+                        value="1.8"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="rimLightWidth">
+                            Rim Light Width
+                        </label>
+
+                        <span id="rimLightWidthValue"></span>
+
+                    </div>
+
+                    <input
+                        id="rimLightWidth"
+                        type="range"
+                        min="1"
+                        max="30"
+                        step="1"
+                        value="10"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="lightX">
+                            Manual Light X
+                        </label>
+
+                        <span id="lightXValue"></span>
+
+                    </div>
+
+                    <input
+                        id="lightX"
+                        type="range"
+                        min="-1"
+                        max="1"
+                        step="0.01"
+                        value="-0.7"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="lightY">
+                            Manual Light Y
+                        </label>
+
+                        <span id="lightYValue"></span>
+
+                    </div>
+
+                    <input
+                        id="lightY"
+                        type="range"
+                        min="-1"
+                        max="1"
+                        step="0.01"
+                        value="-0.7"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="lightTimeOffset">
+                            Time Light Offset
+                        </label>
+
+                        <span id="lightTimeOffsetValue"></span>
+
+                    </div>
+
+                    <input
+                        id="lightTimeOffset"
+                        type="range"
+                        min="-6"
+                        max="6"
+                        step="0.1"
+                        value="0"
+                    >
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================
+                 DAY
+            ================================== -->
+
+            <section class="control-section">
+
+                <h3>Day Material</h3>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="daySpecular">
+                            Specular
+                        </label>
+
+                        <span id="daySpecularValue"></span>
+
+                    </div>
+
+                    <input
+                        id="daySpecular"
+                        type="range"
+                        min="0"
+                        max="3"
+                        step="0.05"
+                        value="1.4"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="daySpecularFocus">
+                            Specular Focus
+                        </label>
+
+                        <span id="daySpecularFocusValue"></span>
+
+                    </div>
+
+                    <input
+                        id="daySpecularFocus"
+                        type="range"
+                        min="1"
+                        max="8"
+                        step="0.1"
+                        value="3"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="dayTint">
+                            Tint
+                        </label>
+
+                        <span id="dayTintValue"></span>
+
+                    </div>
+
+                    <input
+                        id="dayTint"
+                        type="range"
+                        min="0"
+                        max="0.25"
+                        step="0.005"
+                        value="0.04"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="daySaturation">
+                            Saturation
+                        </label>
+
+                        <span id="daySaturationValue"></span>
+
+                    </div>
+
+                    <input
+                        id="daySaturation"
+                        type="range"
+                        min="0.5"
+                        max="2"
+                        step="0.05"
+                        value="1.15"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="dayRefraction">
+                            Refraction Multiplier
+                        </label>
+
+                        <span id="dayRefractionValue"></span>
+
+                    </div>
+
+                    <input
+                        id="dayRefraction"
+                        type="range"
+                        min="0"
+                        max="2"
+                        step="0.05"
+                        value="1"
+                    >
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================
+                 NIGHT
+            ================================== -->
+
+            <section class="control-section">
+
+                <h3>Night Material</h3>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="nightSpecular">
+                            Specular
+                        </label>
+
+                        <span id="nightSpecularValue"></span>
+
+                    </div>
+
+                    <input
+                        id="nightSpecular"
+                        type="range"
+                        min="0"
+                        max="3"
+                        step="0.05"
+                        value="1.15"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="nightSpecularFocus">
+                            Specular Focus
+                        </label>
+
+                        <span id="nightSpecularFocusValue"></span>
+
+                    </div>
+
+                    <input
+                        id="nightSpecularFocus"
+                        type="range"
+                        min="1"
+                        max="8"
+                        step="0.1"
+                        value="4.5"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="nightTint">
+                            Tint
+                        </label>
+
+                        <span id="nightTintValue"></span>
+
+                    </div>
+
+                    <input
+                        id="nightTint"
+                        type="range"
+                        min="0"
+                        max="0.25"
+                        step="0.005"
+                        value="0.035"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="nightSaturation">
+                            Saturation
+                        </label>
+
+                        <span id="nightSaturationValue"></span>
+
+                    </div>
+
+                    <input
+                        id="nightSaturation"
+                        type="range"
+                        min="0.5"
+                        max="2"
+                        step="0.05"
+                        value="1.10"
+                    >
+
+                </div>
+
+
+                <div class="control-group">
+
+                    <div class="control-label">
+
+                        <label for="nightRefraction">
+                            Refraction Multiplier
+                        </label>
+
+                        <span id="nightRefractionValue"></span>
+
+                    </div>
+
+                    <input
+                        id="nightRefraction"
+                        type="range"
+                        min="0"
+                        max="2"
+                        step="0.05"
+                        value="1.05"
+                    >
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================
+                 INSPECTOR
+            ================================== -->
+
+            <section class="control-section">
+
+                <h3>Current Material</h3>
+
+                <div class="material-inspector">
+
+                    <div>
+                        <span>Day Factor</span>
+                        <strong id="debugDayFactor">0</strong>
+                    </div>
+
+                    <div>
+                        <span>Refraction</span>
+                        <strong id="debugRefraction">0</strong>
+                    </div>
+
+                    <div>
+                        <span>Specular</span>
+                        <strong id="debugSpecular">0</strong>
+                    </div>
+
+                    <div>
+                        <span>Focus</span>
+                        <strong id="debugFocus">0</strong>
+                    </div>
+
+                    <div>
+                        <span>Blur</span>
+                        <strong id="debugBlur">0</strong>
+                    </div>
+
+                    <div>
+                        <span>Tint</span>
+                        <strong id="debugTint">0</strong>
+                    </div>
+
+                    <div>
+                        <span>Saturation</span>
+                        <strong id="debugSaturation">0</strong>
+                    </div>
+
+                    <div>
+                        <span>Light X</span>
+                        <strong id="debugLightX">0</strong>
+                    </div>
+
+                    <div>
+                        <span>Light Y</span>
+                        <strong id="debugLightY">0</strong>
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- BUTTONS -->
+
+            <div class="panel-actions">
+
+                <button
+                    id="dayPreviewButton"
+                    type="button"
+                >
+                    Preview Day
+                </button>
+
+                <button
+                    id="sunsetPreviewButton"
+                    type="button"
+                >
+                    Preview Sunset
+                </button>
+
+                <button
+                    id="nightPreviewButton"
+                    type="button"
+                >
+                    Preview Night
+                </button>
+
+                <button
+                    id="resetButton"
+                    type="button"
+                >
+                    Reset All
+                </button>
+
+            </div>
+
+        </aside>
+
+    </main>
+
+
+    <script src="script.js"></script>
+
+</body>
+
+</html>

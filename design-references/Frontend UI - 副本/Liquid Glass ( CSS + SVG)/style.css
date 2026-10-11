@@ -1,0 +1,645 @@
+* {
+    box-sizing: border-box;
+}
+
+
+html,
+body {
+    margin: 0;
+    width: 100%;
+    min-height: 100%;
+}
+
+
+body {
+    min-height: 100vh;
+
+    font-family:
+        Inter,
+        Arial,
+        sans-serif;
+
+    color: white;
+
+    background:
+        url("background.png")
+        center / cover
+        no-repeat
+        fixed;
+}
+
+
+/* =========================================
+   SVG
+========================================= */
+
+.svg-filters {
+    position: absolute;
+
+    width: 0;
+    height: 0;
+
+    overflow: hidden;
+}
+
+
+/* =========================================
+   WORKSPACE
+========================================= */
+
+.workspace {
+    width: min(1400px, 100%);
+
+    min-height: 100vh;
+
+    margin: 0 auto;
+
+    padding: 32px;
+
+    display: grid;
+
+    grid-template-columns:
+        minmax(500px, 1fr)
+        370px;
+
+    gap: 36px;
+
+    align-items: center;
+}
+
+
+/* =========================================
+   PREVIEW
+========================================= */
+
+.preview-area {
+    min-width: 0;
+
+    display: flex;
+
+    justify-content: center;
+    align-items: center;
+}
+
+
+/* =========================================
+   GLASS
+========================================= */
+
+.glass-card {
+
+    --glass-radius: 38px;
+    --glass-blur: 0.3px;
+    --glass-tint: 0.04;
+    --glass-saturation: 1.15;
+
+    position: relative;
+
+    width: 470px;
+    height: 290px;
+
+    overflow: hidden;
+
+    isolation: isolate;
+
+    border-radius:
+        var(--glass-radius);
+
+    background:
+        rgba(
+            255,
+            255,
+            255,
+            var(--glass-tint)
+        );
+
+    backdrop-filter:
+        url("#liquid-glass-filter")
+        blur(var(--glass-blur))
+        saturate(var(--glass-saturation));
+
+    -webkit-backdrop-filter:
+        blur(var(--glass-blur))
+        saturate(var(--glass-saturation));
+
+    box-shadow:
+
+        inset 0 1px 0
+        rgba(255,255,255,0.22),
+
+        inset 0 -1px 0
+        rgba(255,255,255,0.05),
+
+        0 24px 60px
+        rgba(0,0,0,0.24);
+}
+
+
+/*
+    Keep static border weak.
+
+    Dynamic optical rim light comes from
+    the generated specular map.
+*/
+
+.glass-card::before {
+
+    content: "";
+
+    position: absolute;
+
+    inset: 0;
+
+    z-index: 3;
+
+    pointer-events: none;
+
+    border-radius: inherit;
+
+    border:
+        1px solid
+        rgba(255,255,255,0.12);
+
+    box-shadow:
+
+        inset 0 0 0 1px
+        rgba(255,255,255,0.04);
+}
+
+
+/* =========================================
+   CONTENT
+========================================= */
+
+.glass-content {
+
+    position: relative;
+
+    z-index: 4;
+
+    height: 100%;
+
+    padding: 34px;
+
+    display: flex;
+
+    flex-direction: column;
+
+    justify-content: center;
+}
+
+
+.glass-content h1 {
+
+    margin: 10px 0;
+
+    font-size: 42px;
+
+    line-height: 1;
+}
+
+
+.glass-content p {
+
+    margin: 0;
+
+    font-size: 17px;
+
+    opacity: 0.82;
+}
+
+
+/* =========================================
+   TIME BADGE
+========================================= */
+
+.time-badge {
+
+    position: absolute;
+
+    top: 20px;
+    right: 20px;
+
+    display: flex;
+
+    gap: 7px;
+
+    padding: 7px 10px;
+
+    border-radius: 999px;
+
+    background:
+        rgba(0,0,0,0.20);
+
+    backdrop-filter:
+        blur(10px);
+
+    font-size: 12px;
+
+    font-weight: 700;
+}
+
+
+#materialModeDisplay {
+    opacity: 0.65;
+}
+
+
+/* =========================================
+   CONTROL PANEL
+========================================= */
+
+.control-panel {
+
+    width: 100%;
+
+    max-height:
+        calc(100vh - 40px);
+
+    overflow-y: auto;
+
+    padding: 26px;
+
+    border-radius: 28px;
+
+    background:
+        rgba(
+            22,
+            20,
+            26,
+            0.76
+        );
+
+    backdrop-filter:
+        blur(26px)
+        saturate(1.2);
+
+    border:
+        1px solid
+        rgba(255,255,255,0.14);
+
+    box-shadow:
+        0 30px 80px
+        rgba(0,0,0,0.32);
+}
+
+
+.control-panel::-webkit-scrollbar {
+    width: 8px;
+}
+
+
+.control-panel::-webkit-scrollbar-thumb {
+
+    border-radius: 20px;
+
+    background:
+        rgba(255,255,255,0.18);
+}
+
+
+/* =========================================
+   HEADER
+========================================= */
+
+.panel-header {
+    margin-bottom: 22px;
+}
+
+
+.panel-header h2 {
+
+    margin: 0 0 5px;
+
+    font-size: 27px;
+}
+
+
+.panel-header p {
+
+    margin: 0;
+
+    font-size: 13px;
+
+    opacity: 0.6;
+}
+
+
+/* =========================================
+   SECTION
+========================================= */
+
+.control-section {
+
+    margin-top: 22px;
+
+    padding-top: 19px;
+
+    border-top:
+        1px solid
+        rgba(255,255,255,0.10);
+}
+
+
+.control-section h3 {
+
+    margin: 0 0 17px;
+
+    font-size: 13px;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.08em;
+
+    opacity: 0.65;
+}
+
+
+/* =========================================
+   CONTROL
+========================================= */
+
+.control-group {
+    margin-bottom: 19px;
+}
+
+
+.control-label {
+
+    margin-bottom: 8px;
+
+    display: flex;
+
+    justify-content: space-between;
+
+    gap: 20px;
+}
+
+
+.control-label label {
+
+    font-size: 14px;
+
+    font-weight: 600;
+}
+
+
+.control-label span {
+
+    min-width: 64px;
+
+    text-align: right;
+
+    font-size: 13px;
+
+    opacity: 0.72;
+
+    font-variant-numeric:
+        tabular-nums;
+}
+
+
+input[type="range"] {
+
+    width: 100%;
+
+    cursor: pointer;
+
+    accent-color: white;
+}
+
+
+input[type="range"]:disabled {
+
+    opacity: 0.35;
+
+    cursor: not-allowed;
+}
+
+
+/* =========================================
+   SWITCH
+========================================= */
+
+.switch-row {
+
+    min-height: 52px;
+
+    margin-bottom: 10px;
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    gap: 20px;
+}
+
+
+.switch-row strong {
+
+    display: block;
+
+    font-size: 14px;
+}
+
+
+.switch-row small {
+
+    display: block;
+
+    margin-top: 3px;
+
+    font-size: 11px;
+
+    opacity: 0.55;
+}
+
+
+.switch {
+
+    position: relative;
+
+    width: 46px;
+    height: 26px;
+
+    flex: 0 0 46px;
+}
+
+
+.switch input {
+
+    position: absolute;
+
+    opacity: 0;
+}
+
+
+.switch-track {
+
+    position: absolute;
+
+    inset: 0;
+
+    border-radius: 999px;
+
+    cursor: pointer;
+
+    background:
+        rgba(255,255,255,0.16);
+}
+
+
+.switch-track::before {
+
+    content: "";
+
+    position: absolute;
+
+    width: 20px;
+    height: 20px;
+
+    top: 3px;
+    left: 3px;
+
+    border-radius: 50%;
+
+    background: white;
+
+    transition:
+        transform 160ms ease;
+}
+
+
+.switch input:checked +
+.switch-track {
+
+    background:
+        rgba(255,255,255,0.40);
+}
+
+
+.switch input:checked +
+.switch-track::before {
+
+    transform:
+        translateX(20px);
+}
+
+
+/* =========================================
+   INSPECTOR
+========================================= */
+
+.material-inspector {
+
+    display: grid;
+
+    gap: 8px;
+}
+
+
+.material-inspector div {
+
+    display: flex;
+
+    justify-content: space-between;
+
+    gap: 20px;
+
+    padding: 9px 10px;
+
+    border-radius: 10px;
+
+    background:
+        rgba(255,255,255,0.05);
+}
+
+
+.material-inspector span {
+
+    font-size: 12px;
+
+    opacity: 0.62;
+}
+
+
+.material-inspector strong {
+
+    font-size: 12px;
+
+    font-variant-numeric:
+        tabular-nums;
+}
+
+
+/* =========================================
+   BUTTONS
+========================================= */
+
+.panel-actions {
+
+    margin-top: 24px;
+
+    display: grid;
+
+    grid-template-columns:
+        1fr 1fr;
+
+    gap: 10px;
+}
+
+
+.panel-actions button {
+
+    min-height: 44px;
+
+    border:
+        1px solid
+        rgba(255,255,255,0.16);
+
+    border-radius: 14px;
+
+    color: white;
+
+    background:
+        rgba(255,255,255,0.08);
+
+    font-weight: 600;
+
+    cursor: pointer;
+}
+
+
+.panel-actions button:hover {
+
+    background:
+        rgba(255,255,255,0.15);
+}
+
+
+/* =========================================
+   RESPONSIVE
+========================================= */
+
+@media (max-width: 950px) {
+
+    .workspace {
+
+        grid-template-columns:
+            1fr;
+    }
+
+
+    .control-panel {
+
+        max-width: 470px;
+
+        max-height: none;
+
+        overflow: visible;
+
+        margin: 0 auto;
+    }
+}
